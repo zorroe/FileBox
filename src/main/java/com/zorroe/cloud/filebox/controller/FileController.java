@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.zorroe.cloud.filebox.common.Result;
 import com.zorroe.cloud.filebox.entity.File;
 import com.zorroe.cloud.filebox.enums.FileStatusEnum;
+import com.zorroe.cloud.filebox.enums.ServerStatus;
+import com.zorroe.cloud.filebox.exception.FileOperateException;
 import com.zorroe.cloud.filebox.service.FileService;
 import com.zorroe.cloud.filebox.service.FileStorageService;
 import org.springframework.core.io.InputStreamResource;
@@ -101,5 +103,20 @@ public class FileController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    @GetMapping("/info/{code}")
+    public Result<File> getFileInfo(@PathVariable("code") String code) {
+        File file = fileService.getOne(new LambdaQueryWrapper<File>().eq(File::getCode, code));
+        if (Objects.isNull(file)) {
+            throw new FileOperateException(ServerStatus.FILE_NOT_FOUND.getCode(), ServerStatus.FILE_NOT_FOUND.getMessage());
+        }
+        if (file.getStatus().equals(FileStatusEnum.DELETED.getCode())) {
+            throw new FileOperateException(ServerStatus.FILE_DELETED.getCode(), ServerStatus.FILE_DELETED.getMessage());
+        }
+        if (file.getStatus().equals(FileStatusEnum.EXPIRED.getCode())) {
+            throw new FileOperateException(ServerStatus.FILE_EXPIRED.getCode(), ServerStatus.FILE_EXPIRED.getMessage());
+        }
+        return Result.success(file);
     }
 }

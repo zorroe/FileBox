@@ -1,6 +1,6 @@
 package com.zorroe.cloud.filebox.common;
 
-import com.zorroe.cloud.filebox.enums.HttpStatus;
+import com.zorroe.cloud.filebox.enums.ServerStatus;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -42,28 +42,28 @@ public class Result<T> implements Serializable {
      * 成功：无数据返回
      */
     public static <T> Result<T> success() {
-        return new Result<>(HttpStatus.SUCCESS.getCode(), HttpStatus.SUCCESS.getMessage(), null);
+        return new Result<>(ServerStatus.SUCCESS.getCode(), ServerStatus.SUCCESS.getMessage(), null);
     }
 
     /**
      * 成功：带数据返回
      */
     public static <T> Result<T> success(T data) {
-        return new Result<>(HttpStatus.SUCCESS.getCode(), HttpStatus.SUCCESS.getMessage(), data);
+        return new Result<>(ServerStatus.SUCCESS.getCode(), ServerStatus.SUCCESS.getMessage(), data);
     }
 
     /**
      * 成功：自定义消息 + 数据
      */
     public static <T> Result<T> success(String message, T data) {
-        return new Result<>(HttpStatus.SUCCESS.getCode(), message, data);
+        return new Result<>(ServerStatus.SUCCESS.getCode(), message, data);
     }
 
     /**
      * 失败：仅消息
      */
     public static <T> Result<T> fail(String message) {
-        return new Result<>(HttpStatus.INTERNAL_ERROR.getCode(), message, null);
+        return new Result<>(ServerStatus.INTERNAL_ERROR.getCode(), message, null);
     }
 
     /**
@@ -76,7 +76,7 @@ public class Result<T> implements Serializable {
     /**
      * 失败：使用预定义错误类型
      */
-    public static <T> Result<T> fail(HttpStatus status) {
+    public static <T> Result<T> fail(ServerStatus status) {
         return new Result<>(status.getCode(), status.getMessage(), null);
     }
 

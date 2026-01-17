@@ -6,7 +6,7 @@ import lombok.Getter;
  * 常用 HTTP 状态码与业务状态码封装
  */
 @Getter
-public enum HttpStatus {
+public enum ServerStatus {
 
     // 成功
     SUCCESS(200, "操作成功"),
@@ -24,12 +24,21 @@ public enum HttpStatus {
 
     // 服务器错误
     INTERNAL_ERROR(500, "服务器内部错误"),
-    SERVICE_UNAVAILABLE(503, "服务暂不可用");
+    SERVICE_UNAVAILABLE(503, "服务暂不可用"),
+
+    // 文件相关错误
+    FILE_NOT_FOUND(5004, "文件不存在"),
+    FILE_UPLOAD_ERROR(5005, "文件上传失败"),
+    FILE_DOWNLOAD_ERROR(5006, "文件下载失败"),
+    FILE_DELETE_ERROR(5007, "文件删除失败"),
+    FILE_EXPIRED(5008, "文件已过期"),
+    FILE_DELETED(5009, "文件已被删除");
+
 
     private final int code;
     private final String message;
 
-    HttpStatus(int code, String message) {
+    ServerStatus(int code, String message) {
         this.code = code;
         this.message = message;
     }
