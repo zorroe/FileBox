@@ -12,4 +12,6 @@ public interface FileStorageService {
     byte[] getFile(String filePath) throws IOException;
 
     Path getFilePath(String fileName);
+
+    void deleteFile(String storagePath);
 }

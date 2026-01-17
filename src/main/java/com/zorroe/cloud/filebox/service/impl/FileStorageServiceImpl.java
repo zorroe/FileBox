@@ -1,8 +1,10 @@
 package com.zorroe.cloud.filebox.service.impl;
 
+import cn.hutool.core.text.CharSequenceUtil;
 import com.zorroe.cloud.filebox.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -54,5 +56,19 @@ public class FileStorageServiceImpl implements FileStorageService {
     @Override
     public Path getFilePath(String fileName) {
         return Paths.get(storageLocation).resolve(fileName);
+    }
+
+    @Async("FileOperateTaskExecutor")
+    @Override
+    public void deleteFile(String storagePath) {
+        if (CharSequenceUtil.isBlank(storagePath)) {
+            return;
+        }
+        try {
+            Path path = Paths.get(storagePath);
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.error("文件删除失败: {}", e.getMessage());
+        }
     }
 }

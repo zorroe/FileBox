@@ -65,18 +65,23 @@ public class FileController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
 
+            boolean isInValid = false;
             // 2. 检查是否过期
             if (file.getExpireTime() != null && file.getExpireTime().before(new Date())) {
-                file.setStatus(FileStatusEnum.EXPIRED.getCode());
-                fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
-                return ResponseEntity.status(HttpStatus.GONE).build(); // 410 Gone
+                isInValid = true;
             }
 
             // 3. 检查下载次数限制
             if (file.getMaxDownloadCount() > 0 && file.getDownloadCount() >= file.getMaxDownloadCount()) {
-                file.setStatus(FileStatusEnum.EXPIRED.getCode());
+                isInValid = true;
+            }
+
+            if (isInValid) {
+                // 文件已过期或下载次数已用完，更新文件状态为已删除
+                file.setStatus(FileStatusEnum.DELETED.getCode());
                 fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
-                return ResponseEntity.status(HttpStatus.GONE).build(); // 403 Forbidden
+                fileStorageService.deleteFile(file.getStoragePath());
+                return ResponseEntity.status(HttpStatus.GONE).build();
             }
 
             // 4. 更新下载次数
