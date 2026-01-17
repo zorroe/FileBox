@@ -3,6 +3,8 @@ package com.zorroe.cloud.filebox.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.zorroe.cloud.filebox.entity.File;
+import com.zorroe.cloud.filebox.enums.FileStatusEnum;
+import com.zorroe.cloud.filebox.enums.FileTypeEnum;
 import com.zorroe.cloud.filebox.mapper.FileMapper;
 import com.zorroe.cloud.filebox.service.FileService;
 import com.zorroe.cloud.filebox.service.FileStorageService;
@@ -22,7 +24,7 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
     private FileStorageService fileStorageService;
 
     @Override
-    public String uploadFile(MultipartFile file, Integer expireValue, String expireStyle) {
+    public String uploadFile(MultipartFile file, Integer maxDownloadCount, Integer expireValue, String expireStyle) {
         // 生成唯一提取码
         String code = generateUniqueCode();
 
@@ -30,12 +32,13 @@ public class FileServiceImpl extends ServiceImpl<FileMapper, File> implements Fi
         File fileObj = new File();
         fileObj.setCode(code);
         fileObj.setName(file.getOriginalFilename());
-        fileObj.setType("file");
+        fileObj.setType(FileTypeEnum.FILE.getCode());
         fileObj.setSize(file.getSize());
+        fileObj.setMaxDownloadCount(maxDownloadCount);
         fileObj.setStoragePath(fileStorageService.storeFile(file));
         fileObj.setCreateTime(new Date());
         fileObj.setUpdateTime(new Date());
-        fileObj.setStatus("active");
+        fileObj.setStatus(FileStatusEnum.ACTIVE.getCode());
         fileObj.setExpireTime(calculateExpireTime(expireValue, expireStyle));
 
         // 保存文件信息

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.zorroe.cloud.filebox.common.Result;
 import com.zorroe.cloud.filebox.entity.File;
+import com.zorroe.cloud.filebox.enums.FileStatusEnum;
 import com.zorroe.cloud.filebox.service.FileService;
 import com.zorroe.cloud.filebox.service.FileStorageService;
 import org.springframework.core.io.InputStreamResource;
@@ -16,7 +17,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
@@ -42,9 +42,10 @@ public class FileController {
     @PostMapping("/upload")
     public Result<String> uploadFile(
             @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "max_download_count", defaultValue = "0") Integer maxDownloadCount,
             @RequestParam(value = "expire_value", defaultValue = "1") Integer expireValue,
             @RequestParam(value = "expire_style", defaultValue = "days") String expireStyle) {
-        String code = fileService.uploadFile(file, expireValue, expireStyle);
+        String code = fileService.uploadFile(file, maxDownloadCount, expireValue, expireStyle);
         return Result.success(code);
     }
 
@@ -58,7 +59,7 @@ public class FileController {
     public ResponseEntity<InputStreamResource> downloadFile(@PathVariable("code") String code) {
         try {
             // 1. 查询文件信息
-            LambdaQueryWrapper<File> queryWrapper = new LambdaQueryWrapper<File>().eq(File::getCode, code).eq(File::getStatus, "active");
+            LambdaQueryWrapper<File> queryWrapper = new LambdaQueryWrapper<File>().eq(File::getCode, code).eq(File::getStatus, FileStatusEnum.ACTIVE.getCode());
             File file = fileService.getOne(queryWrapper);
             if (Objects.isNull(file)) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -66,15 +67,21 @@ public class FileController {
 
             // 2. 检查是否过期
             if (file.getExpireTime() != null && file.getExpireTime().before(new Date())) {
-                file.setStatus("expired");
+                file.setStatus(FileStatusEnum.EXPIRED.getCode());
                 fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
                 return ResponseEntity.status(HttpStatus.GONE).build(); // 410 Gone
             }
 
             // 3. 检查下载次数限制
             if (file.getMaxDownloadCount() > 0 && file.getDownloadCount() >= file.getMaxDownloadCount()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).build(); // 403 Forbidden
+                file.setStatus(FileStatusEnum.EXPIRED.getCode());
+                fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
+                return ResponseEntity.status(HttpStatus.GONE).build(); // 403 Forbidden
             }
+
+            // 4. 更新下载次数
+            file.setDownloadCount(file.getDownloadCount() + 1);
+            fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
 
             // 5. 构建文件流响应
             FileInputStream fis = new FileInputStream(file.getStoragePath());
