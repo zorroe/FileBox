@@ -12,3 +12,7 @@ spring:
       idle-timeout: 30000
       max-lifetime: 1200000
       connection-timeout: 20000
+
+logging:
+  level:
+    com.zorroe.cloud: debug

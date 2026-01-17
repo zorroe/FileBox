@@ -8,7 +8,7 @@ import lombok.Data;
 import java.util.Date;
 
 @Data
-@TableName("file")
+@TableName("files")
 public class File {
 
     @TableId

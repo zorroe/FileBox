@@ -1,9 +1,93 @@
 package com.zorroe.cloud.filebox.controller;
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.zorroe.cloud.filebox.common.Result;
+import com.zorroe.cloud.filebox.entity.File;
+import com.zorroe.cloud.filebox.service.FileService;
+import com.zorroe.cloud.filebox.service.FileStorageService;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.annotation.Resource;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Date;
+import java.util.Objects;
 
 @RestController
-@RequestMapping("/file")
+@RequestMapping("/api/file")
 public class FileController {
+
+    @Resource
+    private FileService fileService;
+
+    @Resource
+    private FileStorageService fileStorageService;
+
+
+    /**
+     * 上传文件接口
+     *
+     * @param file        文件
+     * @param expireValue 有效期数值
+     * @param expireStyle 有效期类型 (day/hour/minute/count/forever)
+     * @return 包含取件码和文件名的响应
+     */
+    @PostMapping("/upload")
+    public Result<String> uploadFile(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "expire_value", defaultValue = "1") Integer expireValue,
+            @RequestParam(value = "expire_style", defaultValue = "days") String expireStyle) {
+        String code = fileService.uploadFile(file, expireValue, expireStyle);
+        return Result.success(code);
+    }
+
+    /**
+     * 下载文件接口
+     *
+     * @param code 取件码
+     * @return 文件内容
+     */
+    @GetMapping("/download/{code}")
+    public ResponseEntity<InputStreamResource> downloadFile(@PathVariable("code") String code) {
+        try {
+            // 1. 查询文件信息
+            LambdaQueryWrapper<File> queryWrapper = new LambdaQueryWrapper<File>().eq(File::getCode, code).eq(File::getStatus, "active");
+            File file = fileService.getOne(queryWrapper);
+            if (Objects.isNull(file)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
+
+            // 2. 检查是否过期
+            if (file.getExpireTime() != null && file.getExpireTime().before(new Date())) {
+                file.setStatus("expired");
+                fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
+                return ResponseEntity.status(HttpStatus.GONE).build(); // 410 Gone
+            }
+
+            // 3. 检查下载次数限制
+            if (file.getMaxDownloadCount() > 0 && file.getDownloadCount() >= file.getMaxDownloadCount()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build(); // 403 Forbidden
+            }
+
+            // 5. 构建文件流响应
+            FileInputStream fis = new FileInputStream(file.getStoragePath());
+            InputStreamResource resource = new InputStreamResource(fis);
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .contentLength(file.getSize())
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" +
+                            java.net.URLEncoder.encode(file.getName(), "UTF-8").replace("+", "%20") + "\"")
+                    .body(resource);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 }
