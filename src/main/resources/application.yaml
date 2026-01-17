@@ -1,3 +1,14 @@
 server:
   port: 8080
-
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: mysql_h6spZJ
+    url: jdbc:mysql://127.0.0.1:13306/file_box?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 30000
+      max-lifetime: 1200000
+      connection-timeout: 20000
