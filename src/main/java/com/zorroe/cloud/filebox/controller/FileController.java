@@ -12,6 +12,7 @@ import com.zorroe.cloud.filebox.enums.ServerStatus;
 import com.zorroe.cloud.filebox.exception.FileOperateException;
 import com.zorroe.cloud.filebox.service.FileService;
 import com.zorroe.cloud.filebox.service.FileStorageService;
+import com.zorroe.cloud.filebox.utils.IpUtil;
 import com.zorroe.cloud.filebox.utils.RateLimiterUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
@@ -74,7 +75,7 @@ public class FileController {
      */
     @GetMapping("/download/{code}")
     public ResponseEntity<InputStreamResource> downloadFile(@PathVariable("code") String code, HttpServletRequest request) {
-        String clientIp = getClientIp(request);
+        String clientIp = IpUtil.getClientIp(request);
         // 1. 对取件码限流
         if (!rateLimiter.tryAcquire("code:" + code, MAX_DOWNLOAD_PER_CODE_PER_MINUTE, 60)) {
             throw new FileOperateException(ServerStatus.FILE_DOWNLOAD_RATE_EXCEED.getCode(), ServerStatus.FILE_DOWNLOAD_RATE_EXCEED.getMessage());
@@ -142,17 +143,5 @@ public class FileController {
         FileDto fileDto = BeanUtil.copyProperties(file, FileDto.class);
         fileDto.setDirectLink(CharSequenceUtil.format("{}/api/file/download/{}", storageHost, file.getCode()));
         return Result.success(fileDto);
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-            return ip.split(",")[0].trim();
-        }
-        ip = request.getHeader("X-Real-IP");
-        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-            return ip;
-        }
-        return request.getRemoteAddr();
     }
 }

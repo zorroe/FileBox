@@ -8,7 +8,7 @@ import lombok.Data;
 import java.util.Date;
 
 @Data
-@TableName
+@TableName("configurations")
 public class Config {
 
     @TableId
