@@ -12,6 +12,11 @@ spring:
       idle-timeout: 30000
       max-lifetime: 1200000
       connection-timeout: 20000
+  servlet:
+    multipart:
+      max-file-size: 600MB
+      max-request-size: 600MB
+      resolve-lazily: true
 
 logging:
   level:

@@ -1,14 +1,18 @@
 package com.zorroe.cloud.filebox.controller;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.text.CharSequenceUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.zorroe.cloud.filebox.common.Result;
+import com.zorroe.cloud.filebox.dto.FileDto;
 import com.zorroe.cloud.filebox.entity.File;
 import com.zorroe.cloud.filebox.enums.FileStatusEnum;
 import com.zorroe.cloud.filebox.enums.ServerStatus;
 import com.zorroe.cloud.filebox.exception.FileOperateException;
 import com.zorroe.cloud.filebox.service.FileService;
 import com.zorroe.cloud.filebox.service.FileStorageService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -32,6 +36,9 @@ public class FileController {
     @Resource
     private FileStorageService fileStorageService;
 
+    @Value("${file.storage.host:http://localhost:8080}")
+    private String storageHost;
+
 
     /**
      * 上传文件接口
@@ -44,9 +51,9 @@ public class FileController {
     @PostMapping("/upload")
     public Result<String> uploadFile(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "max_download_count", defaultValue = "0") Integer maxDownloadCount,
-            @RequestParam(value = "expire_value", defaultValue = "1") Integer expireValue,
-            @RequestParam(value = "expire_style", defaultValue = "days") String expireStyle) {
+            @RequestParam(value = "maxDownloadCount", defaultValue = "0") Integer maxDownloadCount,
+            @RequestParam(value = "expireValue", defaultValue = "1") Integer expireValue,
+            @RequestParam(value = "expireStyle", defaultValue = "days") String expireStyle) {
         String code = fileService.uploadFile(file, maxDownloadCount, expireValue, expireStyle);
         return Result.success(code);
     }
@@ -101,12 +108,12 @@ public class FileController {
                             java.net.URLEncoder.encode(file.getName(), "UTF-8").replace("+", "%20") + "\"")
                     .body(resource);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            throw new FileOperateException(ServerStatus.FILE_DOWNLOAD_ERROR.getCode(), ServerStatus.FILE_DOWNLOAD_ERROR.getMessage());
         }
     }
 
     @GetMapping("/info/{code}")
-    public Result<File> getFileInfo(@PathVariable("code") String code) {
+    public Result<FileDto> getFileInfo(@PathVariable("code") String code) {
         File file = fileService.getOne(new LambdaQueryWrapper<File>().eq(File::getCode, code));
         if (Objects.isNull(file)) {
             throw new FileOperateException(ServerStatus.FILE_NOT_FOUND.getCode(), ServerStatus.FILE_NOT_FOUND.getMessage());
@@ -117,6 +124,8 @@ public class FileController {
         if (file.getStatus().equals(FileStatusEnum.EXPIRED.getCode())) {
             throw new FileOperateException(ServerStatus.FILE_EXPIRED.getCode(), ServerStatus.FILE_EXPIRED.getMessage());
         }
-        return Result.success(file);
+        FileDto fileDto = BeanUtil.copyProperties(file, FileDto.class);
+        fileDto.setDirectLink(CharSequenceUtil.format("{}/api/file/download/{}", storageHost, file.getCode()));
+        return Result.success(fileDto);
     }
 }
