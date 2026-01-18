@@ -32,7 +32,9 @@ public enum ServerStatus {
     FILE_DOWNLOAD_ERROR(5006, "文件下载失败"),
     FILE_DELETE_ERROR(5007, "文件删除失败"),
     FILE_EXPIRED(5008, "文件已过期"),
-    FILE_DELETED(5009, "文件已被删除");
+    FILE_DELETED(5009, "文件已被删除"),
+    FILE_DOWNLOAD_TIMES_EXCEED(5008, "下载次数超出限制, 文件被删除"),
+    FILE_DOWNLOAD_RATE_EXCEED(5010, "下载频率超出限制, 请稍后重试");
 
 
     private final int code;

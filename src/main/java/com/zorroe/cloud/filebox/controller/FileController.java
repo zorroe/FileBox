@@ -12,16 +12,17 @@ import com.zorroe.cloud.filebox.enums.ServerStatus;
 import com.zorroe.cloud.filebox.exception.FileOperateException;
 import com.zorroe.cloud.filebox.service.FileService;
 import com.zorroe.cloud.filebox.service.FileStorageService;
+import com.zorroe.cloud.filebox.utils.RateLimiterUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
 import java.io.FileInputStream;
 import java.util.Date;
 import java.util.Objects;
@@ -38,6 +39,13 @@ public class FileController {
 
     @Value("${file.storage.host:http://localhost:8080}")
     private String storageHost;
+
+    @Resource
+    private RateLimiterUtil rateLimiter;
+
+    // 限流配置（可提取到配置文件）
+    private static final int MAX_DOWNLOAD_PER_CODE_PER_MINUTE = 2;   // 每个取件码每分钟最多2次
+    private static final int MAX_DOWNLOAD_PER_IP_PER_MINUTE = 2;    // 每个IP每分钟最多2次
 
 
     /**
@@ -65,34 +73,41 @@ public class FileController {
      * @return 文件内容
      */
     @GetMapping("/download/{code}")
-    public ResponseEntity<InputStreamResource> downloadFile(@PathVariable("code") String code) {
+    public ResponseEntity<InputStreamResource> downloadFile(@PathVariable("code") String code, HttpServletRequest request) {
+        String clientIp = getClientIp(request);
+        // 1. 对取件码限流
+        if (!rateLimiter.tryAcquire("code:" + code, MAX_DOWNLOAD_PER_CODE_PER_MINUTE, 60)) {
+            throw new FileOperateException(ServerStatus.FILE_DOWNLOAD_RATE_EXCEED.getCode(), ServerStatus.FILE_DOWNLOAD_RATE_EXCEED.getMessage());
+        }
+
+        // 2. 对 IP 限流
+        if (!rateLimiter.tryAcquire("ip:" + clientIp, MAX_DOWNLOAD_PER_IP_PER_MINUTE, 60)) {
+            throw new FileOperateException(ServerStatus.FILE_DOWNLOAD_RATE_EXCEED.getCode(), ServerStatus.FILE_DOWNLOAD_RATE_EXCEED.getMessage());
+        }
+
+        // 1. 查询文件信息
+        LambdaQueryWrapper<File> queryWrapper = new LambdaQueryWrapper<File>().eq(File::getCode, code);
+        File file = fileService.getOne(queryWrapper);
+        if (Objects.isNull(file)) {
+            throw new FileOperateException(ServerStatus.FILE_NOT_FOUND.getCode(), ServerStatus.FILE_NOT_FOUND.getMessage());
+        }
+
+        // 2. 检查是否过期
+        if (file.getExpireTime() != null && file.getExpireTime().before(new Date())) {
+            file.setStatus(FileStatusEnum.EXPIRED.getCode());
+            fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
+            fileStorageService.deleteFile(file.getStoragePath());
+            throw new FileOperateException(ServerStatus.FILE_EXPIRED.getCode(), ServerStatus.FILE_EXPIRED.getMessage());
+        }
+
+        // 3. 检查下载次数限制
+        if (file.getMaxDownloadCount() > 0 && file.getDownloadCount() >= file.getMaxDownloadCount()) {
+            file.setStatus(FileStatusEnum.DELETED.getCode());
+            fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
+            fileStorageService.deleteFile(file.getStoragePath());
+            throw new FileOperateException(ServerStatus.FILE_DOWNLOAD_TIMES_EXCEED.getCode(), ServerStatus.FILE_DOWNLOAD_TIMES_EXCEED.getMessage());
+        }
         try {
-            // 1. 查询文件信息
-            LambdaQueryWrapper<File> queryWrapper = new LambdaQueryWrapper<File>().eq(File::getCode, code).eq(File::getStatus, FileStatusEnum.ACTIVE.getCode());
-            File file = fileService.getOne(queryWrapper);
-            if (Objects.isNull(file)) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-            }
-
-            boolean isInValid = false;
-            // 2. 检查是否过期
-            if (file.getExpireTime() != null && file.getExpireTime().before(new Date())) {
-                isInValid = true;
-            }
-
-            // 3. 检查下载次数限制
-            if (file.getMaxDownloadCount() > 0 && file.getDownloadCount() >= file.getMaxDownloadCount()) {
-                isInValid = true;
-            }
-
-            if (isInValid) {
-                // 文件已过期或下载次数已用完，更新文件状态为已删除
-                file.setStatus(FileStatusEnum.DELETED.getCode());
-                fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
-                fileStorageService.deleteFile(file.getStoragePath());
-                return ResponseEntity.status(HttpStatus.GONE).build();
-            }
-
             // 4. 更新下载次数
             file.setDownloadCount(file.getDownloadCount() + 1);
             fileService.update(file, new UpdateWrapper<File>().eq("id", file.getId()));
@@ -127,5 +142,17 @@ public class FileController {
         FileDto fileDto = BeanUtil.copyProperties(file, FileDto.class);
         fileDto.setDirectLink(CharSequenceUtil.format("{}/api/file/download/{}", storageHost, file.getCode()));
         return Result.success(fileDto);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
+            return ip.split(",")[0].trim();
+        }
+        ip = request.getHeader("X-Real-IP");
+        if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
+            return ip;
+        }
+        return request.getRemoteAddr();
     }
 }

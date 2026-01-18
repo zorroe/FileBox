@@ -3,9 +3,9 @@ server:
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: filebox
-    password: fS7DHXQJxCkdzPmX
-    url: jdbc:mysql://127.0.0.1:13306/filebox?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: mysql_h6spZJ
+    url: jdbc:mysql://127.0.0.1:13306/file_box?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
@@ -18,9 +18,14 @@ spring:
       max-request-size: 600MB
       resolve-lazily: true
 
+  redis:
+    host: localhost
+    port: 16379
+    password: redis_2ZbdyH
+
 file:
   storage:
-    location: /share/fileBox/upload
+    location: /uploads
 
 logging:
   level:
